@@ -1,0 +1,78 @@
+---
+title: "Running Log"
+author: "Jake Russ"
+date: "Last updated `r format(Sys.time(), '%d %B, %Y')`"
+output: html_document
+---
+
+<!-- Load data and clean -->
+```{r setup, echo=FALSE, include=FALSE}
+library(googlesheets)
+library(dplyr)
+library(tidyr)
+library(magrittr)
+library(lubridate)
+library(ggplot2)
+
+# Import my running log data via the Google spreadsheet API key 
+raw_runs <- gs_key("1o4tM002LwAIJadUKbpS1GMPiOjdslHvMXi77W8Hhses") %>%
+  gs_read()
+
+# Clean and tidy raw data -----------------------------------------------------
+
+cleaned <- raw_runs %>%
+  # Remove any run that is shorter than 30 seconds or longer than 90 minutes
+  filter(duration.seconds > 30, duration.seconds < 5400) %>%
+  # Make dates consistent format
+  # Add a duration in minutes column
+  mutate(date             = parse_date_time(x      = date,
+                                            orders = c("%a %d %b %Y %T", "mdy"), 
+                                            tz     = "America/New_York"),
+         duration.minutes = (duration.seconds / 60) %>% round(digits = 2),
+         avg.pace         = (duration.minutes / total.distance) %>% round(digits = 2),
+         year             = year(date),
+         month            = month(date),
+         year.month       = as.Date(cut(date, breaks = "month")))
+
+
+```
+
+## Number of runs per month
+```{r by_month,echo=FALSE}
+
+by_month <- cleaned %>%
+  group_by(year.month) %>%
+  summarise(count = n()) %>%
+  ungroup()
+
+by_month %>% 
+  ggplot(aes(x = year.month, y = count)) + 
+  geom_bar(stat = "identity") +
+  labs(x = "Year-Month", y = "Times Ran", title = "Number of Runs by Month")
+
+
+```
+
+
+
+## Pace through time
+
+```{r pace, echo=FALSE}
+
+cleaned %>%
+  ggplot(aes(x = date, y = avg.pace)) + 
+  geom_point() + 
+  stat_smooth() +
+  labs(x = "Date", y = "Average Pace")
+
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
